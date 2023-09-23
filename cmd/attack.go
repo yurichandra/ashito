@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"strconv"
 
 	"github.com/spf13/cobra"
 	"github.com/yurichandra/ashito/internal"
@@ -15,6 +16,8 @@ var AttackCmd = &cobra.Command{
 	Run:   run,
 }
 
+var totalDefaultWorker = 10
+
 func run(cmd *cobra.Command, args []string) {
 	inputFlag := cmd.Flag("input")
 	filePath := inputFlag.Value.String()
@@ -23,7 +26,32 @@ func run(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	err := internal.Attack(filePath)
+	targetFlag := cmd.Flag("target")
+	target := targetFlag.Value.String()
+	if target == "" {
+		log.Println("flag `target` is required")
+		return
+	}
+
+	flag := internal.Flag{
+		FilePath:  filePath,
+		Target:    target,
+		MaxWorker: totalDefaultWorker,
+	}
+
+	maxWorkerFlag := cmd.Flag("worker")
+	maxWorker := maxWorkerFlag.Value.String()
+	if maxWorker != "" {
+		parsedMaxWorker, err := strconv.Atoi(maxWorker)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		flag.MaxWorker = parsedMaxWorker
+	}
+
+	err := internal.Attack(flag)
 	if err != nil {
 		fmt.Println(err)
 		// do nothing as of now

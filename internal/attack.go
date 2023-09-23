@@ -12,8 +12,14 @@ type transaction struct {
 	currency   string
 }
 
-func Attack(filePath string) error {
-	file, err := os.Open(filePath)
+type Flag struct {
+	FilePath  string
+	Target    string
+	MaxWorker int
+}
+
+func Attack(flag Flag) error {
+	file, err := os.Open(flag.FilePath)
 	if err != nil {
 		return err
 	}

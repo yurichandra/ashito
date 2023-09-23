@@ -5,7 +5,11 @@ import (
 	"github.com/yurichandra/ashito/cmd"
 )
 
-var Input string
+var (
+	Input  string
+	Worker string
+	Target string
+)
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -16,6 +20,8 @@ func main() {
 
 	attackCommand := cmd.AttackCmd
 	attackCommand.Flags().StringVarP(&Input, "input", "i", "", "Input file that have cards and transaction data, file format should be .csv")
+	attackCommand.Flags().StringVarP(&Worker, "worker", "w", "10", "Number of worker")
+	attackCommand.Flags().StringVarP(&Target, "target", "", "", "Target destination host")
 
 	rootCmd.AddCommand(attackCommand)
 
