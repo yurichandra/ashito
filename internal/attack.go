@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -32,9 +33,14 @@ type connectionPools struct {
 }
 
 type Metrics struct {
-	SuccessResponse       int
-	UnsuccessfullResponse int
-	Error                 int
+	// Success rate of requests
+	Success float64 `json:"success"`
+	// Total number of requests made
+	Request int `json:"request"`
+	// Map of response codes
+	ResponseCodes map[string]int `json:"response_codes"`
+	// Collection of errors on attacks
+	Errors []string `json:"errors"`
 }
 
 func Attack(flag Flag) error {
@@ -119,41 +125,46 @@ func Attack(flag Flag) error {
 	}()
 
 	metrics := &Metrics{
-		SuccessResponse:       0,
-		UnsuccessfullResponse: 0,
-		Error:                 0,
+		Success:       0,
+		Request:       0,
+		ResponseCodes: make(map[string]int),
+		Errors:        make([]string, 0),
 	}
 
 	for {
 		select {
 		case err := <-errChan:
-			fmt.Println(err)
-			fmt.Println("error happening")
+			metrics.Errors = append(metrics.Errors, err.Error())
+			metrics.Request++
 		case response := <-responseChan:
+			metrics.Request++
 			resp, err := message.UnpackMessage(message.CbsSpec, response)
 			if err != nil {
-				metrics.Error++
-				fmt.Println(err)
+				metrics.Errors = append(metrics.Errors, err.Error())
 				continue
 			}
 
 			responseCode, err := resp.GetField(39).String()
 			if err != nil {
-				metrics.Error++
-				fmt.Println(err)
+				metrics.Errors = append(metrics.Errors, err.Error())
 				continue
 			}
 
-			if responseCode == "000" {
-				metrics.SuccessResponse++
-			}
+			metrics.ResponseCodes[responseCode]++
 
-			if responseCode != "000" {
-				metrics.UnsuccessfullResponse++
+			if responseCode == "000" {
+				metrics.Success++
 			}
 		case <-doneChan:
-			fmt.Println(metrics)
-			fmt.Println("completed")
+			metrics.Success = (metrics.Success / float64(metrics.Request)) * 100
+
+			// By default, printing result into a json
+			jsonByte, err := json.Marshal(metrics)
+			if err != nil {
+				return err
+			}
+
+			fmt.Println(string(jsonByte))
 			return nil
 		}
 	}
