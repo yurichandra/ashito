@@ -16,8 +16,6 @@ var AttackCmd = &cobra.Command{
 	Run:   run,
 }
 
-var totalDefaultWorker = 10
-
 func run(cmd *cobra.Command, args []string) {
 	inputFlag := cmd.Flag("input")
 	filePath := inputFlag.Value.String()
@@ -33,22 +31,23 @@ func run(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	flag := internal.Flag{
-		FilePath:  filePath,
-		Target:    target,
-		MaxWorker: totalDefaultWorker,
-	}
-
-	maxWorkerFlag := cmd.Flag("worker")
-	maxWorker := maxWorkerFlag.Value.String()
-	if maxWorker != "" {
-		parsedMaxWorker, err := strconv.Atoi(maxWorker)
+	durationFlag := cmd.Flag("duration")
+	duration := durationFlag.Value.String()
+	durationInSecond := 10
+	if duration != "" {
+		parsedDuration, err := strconv.Atoi(duration)
 		if err != nil {
-			log.Println(err)
+			log.Println("flag `duration` is invalid")
 			return
 		}
 
-		flag.MaxWorker = parsedMaxWorker
+		durationInSecond = parsedDuration
+	}
+
+	flag := internal.Flag{
+		FilePath: filePath,
+		Target:   target,
+		Duration: durationInSecond,
 	}
 
 	err := internal.Attack(flag)
