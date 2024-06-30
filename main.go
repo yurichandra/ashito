@@ -6,9 +6,9 @@ import (
 )
 
 var (
-	Input  string
-	Worker string
-	Target string
+	Input    string
+	Target   string
+	Duration string
 )
 
 func main() {
@@ -20,8 +20,8 @@ func main() {
 
 	attackCommand := cmd.AttackCmd
 	attackCommand.Flags().StringVarP(&Input, "input", "i", "", "Input file that have cards and transaction data, file format should be .csv")
-	attackCommand.Flags().StringVarP(&Worker, "worker", "w", "10", "Number of worker")
 	attackCommand.Flags().StringVarP(&Target, "target", "", "", "Target destination host")
+	attackCommand.Flags().StringVarP(&Duration, "duration", "", "", "Duration of an attack, default 10s")
 
 	rootCmd.AddCommand(attackCommand)
 
