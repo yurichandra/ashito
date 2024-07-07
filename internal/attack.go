@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/csv"
-	"encoding/json"
-	"fmt"
 	"net"
 	"os"
 	"sync"
@@ -32,15 +30,16 @@ type connectionPools struct {
 	connections []net.Conn
 }
 
-type Metrics struct {
-	// Success rate of requests
-	Success float64 `json:"success"`
-	// Total number of requests made
-	Request int `json:"request"`
-	// Map of response codes
-	ResponseCodes map[string]int `json:"response_codes"`
-	// Collection of errors on attacks
-	Errors []string `json:"errors"`
+type Result struct {
+	ResponseByte []byte        `json:"response"`
+	Error        error         `json:"error"`
+	Latency      time.Duration `json:"duration"`
+}
+
+type FilteredResult struct {
+	ResponseCode string        `json:"responseCode"`
+	Error        error         `json:"error"`
+	Latency      time.Duration `json:"duration"`
 }
 
 func Attack(flag Flag) error {
@@ -83,8 +82,7 @@ func Attack(flag Flag) error {
 	defer cancel()
 
 	// Create channels for passing data from goroutines into main goroutine
-	errChan := make(chan error)
-	responseChan := make(chan []byte)
+	resultChan := make(chan Result)
 	doneChan := make(chan bool)
 
 	wg := &sync.WaitGroup{}
@@ -100,18 +98,32 @@ func Attack(flag Flag) error {
 				case <-ctx.Done():
 					return
 				default:
+					now := time.Now()
 					err := helper.WriteOnTopTCP(conn, requestByte)
 					if err != nil {
-						errChan <- err
+						since := time.Since(now)
+						resultChan <- Result{
+							Error:   err,
+							Latency: since,
+						}
 					}
 
 					responseByte, err := helper.ReadOnTopTCP(bufio.NewReader(conn))
 					if err != nil {
-						errChan <- err
+						since := time.Since(now)
+						resultChan <- Result{
+							Error:   err,
+							Latency: since,
+						}
 					}
 
 					if responseByte != nil {
-						responseChan <- responseByte
+						since := time.Since(now)
+						resultChan <- Result{
+							ResponseByte: responseByte,
+							Error:        nil,
+							Latency:      since,
+						}
 					}
 				}
 			}
@@ -124,48 +136,40 @@ func Attack(flag Flag) error {
 		doneChan <- true
 	}()
 
-	metrics := &Metrics{
-		Success:       0,
-		Request:       0,
-		ResponseCodes: make(map[string]int),
-		Errors:        make([]string, 0),
-	}
+	metrics := NewMetric()
 
 	for {
 		select {
-		case err := <-errChan:
-			metrics.Errors = append(metrics.Errors, err.Error())
-			metrics.Request++
-		case response := <-responseChan:
-			metrics.Request++
-			resp, err := message.UnpackMessage(message.CbsSpec, response)
-			if err != nil {
-				metrics.Errors = append(metrics.Errors, err.Error())
-				continue
+		case result := <-resultChan:
+			if result.Error != nil {
+				metrics.Add(&FilteredResult{
+					Error:   result.Error,
+					Latency: result.Latency,
+				})
 			}
 
-			responseCode, err := resp.GetField(39).String()
-			if err != nil {
-				metrics.Errors = append(metrics.Errors, err.Error())
-				continue
-			}
+			if result.ResponseByte != nil {
+				resp, err := message.UnpackMessage(message.CbsSpec, result.ResponseByte)
+				if err != nil {
+					metrics.Errors = append(metrics.Errors, err.Error())
+					continue
+				}
 
-			metrics.ResponseCodes[responseCode]++
+				responseCode, err := resp.GetField(39).String()
+				if err != nil {
+					metrics.Errors = append(metrics.Errors, err.Error())
+					continue
+				}
 
-			if responseCode == "000" {
-				metrics.Success++
+				metrics.Add(&FilteredResult{
+					Error:        nil,
+					ResponseCode: responseCode,
+					Latency:      result.Latency,
+				})
 			}
 		case <-doneChan:
-			metrics.Success = (metrics.Success / float64(metrics.Request)) * 100
-
-			// By default, printing result into a json
-			jsonByte, err := json.Marshal(metrics)
-			if err != nil {
-				return err
-			}
-
-			fmt.Println(string(jsonByte))
-			return nil
+			metrics.Close()
+			return metrics.ShowResult()
 		}
 	}
 }
