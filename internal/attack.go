@@ -40,6 +40,7 @@ type FilteredResult struct {
 	ResponseCode string        `json:"responseCode"`
 	Error        error         `json:"error"`
 	Latency      time.Duration `json:"duration"`
+	ExecutedAt   time.Time     `json:"executedAt"`
 }
 
 func Attack(flag Flag) error {
@@ -78,7 +79,7 @@ func Attack(flag Flag) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(10*time.Second))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(flag.Duration)*time.Second)
 	defer cancel()
 
 	// Create channels for passing data from goroutines into main goroutine
@@ -143,8 +144,9 @@ func Attack(flag Flag) error {
 		case result := <-resultChan:
 			if result.Error != nil {
 				metrics.Add(&FilteredResult{
-					Error:   result.Error,
-					Latency: result.Latency,
+					Error:      result.Error,
+					Latency:    result.Latency,
+					ExecutedAt: time.Now(),
 				})
 			}
 
@@ -165,6 +167,7 @@ func Attack(flag Flag) error {
 					Error:        nil,
 					ResponseCode: responseCode,
 					Latency:      result.Latency,
+					ExecutedAt:   time.Now(),
 				})
 			}
 		case <-doneChan:
