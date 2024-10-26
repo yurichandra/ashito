@@ -50,7 +50,6 @@ func ReadOnTopTCP(reader *bufio.Reader) ([]byte, error) {
 	if err != nil {
 		// Read if message contains QUIT. QUIT was sent from NLB (network load balancer).
 		// With content of QUIT, usually it will causing a lot of UnexpectedEOF error
-		// https://app.rollbar.com/a/Xfers/fix/item/cop/391?utm_campaign=exp_repeat_item_message&utm_medium=slack&utm_source=rollbar-notification
 		if errors.Is(err, io.ErrUnexpectedEOF) && strings.Contains(string(content), "QUIT") {
 			return nil, err
 		}
